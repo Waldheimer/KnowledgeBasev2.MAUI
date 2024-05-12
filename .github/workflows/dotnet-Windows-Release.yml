@@ -1,0 +1,39 @@
+# This workflow will build a .NET project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
+
+name: Release .NET MAUI for Windows
+
+on:
+  push:
+    branches: [ "release" ]
+  pull_request:
+    branches: [ "release" ]
+
+jobs:
+  build:
+
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+# Install the workload for dotnet MAUI
+    - name: Install MAUI workload
+      run: dotnet workload install maui
+    - name: Decrypt PFX Certificate
+      run: |
+        echo "${{ secrets.WINDOWS_PFX }}" > cert.pfx.asc
+        certutil -decode cert.pfx.asc cert.pfx
+    - name: Add Certificate to local Windows Machine Store
+      run: certutil -user -q -p ${{ secrets.WINDOWS_PFX_PASSWORD }} -importpfx cert.pfx NoRoot
+    - name: Build
+      run: dotnet publish KnowledgeBasev2.MAUI/KnowledgeBasev2.MAUI.csproj -c Release -f:net8.0-windows10.0.19041.0 /p:GenerateAppxPackageOnBuild=true /p:AppxPackageSigningEnabled=true /p:PackageCertificateThumbprint="${{ secrets.WINDOWS_PFX_THUMBPRINT }}"  
+# Upload the Artifact back to Github
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4.3.3
+      with: 
+        name: KB_v2_MAUI_Windows
+        path: .\**\AppPackages\**\*.*
